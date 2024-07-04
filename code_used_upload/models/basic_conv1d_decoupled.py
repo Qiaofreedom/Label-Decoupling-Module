@@ -133,18 +133,18 @@ class rSE(nn.Module):
                                 nn.Sigmoid())
     def forward(self, x):
 
-        em = x[:, :, 0]
+        em = x[:, :, 0]   #从输入 x 中提取 em 和 div 特征，分别对应 x 的第3维度的   第0和第1个通道。（第0个通道是经过LDM处理后的特征集合（Module Output），第1个通道是没有经过LDM处理后的特征集合(Raw Output)，即原始的输入分类器之前的特征集合）
         div = x[:, :, 1]
 
         #diff = torch.abs(em - div)
 
-        prob_em = self.rse(torch.ones_like(em))
+        prob_em = self.rse(torch.ones_like(em))  # rse里面有Sigmoid函数
 
         #prob_em = self.se(diff)
 
         prob_div = 1 - prob_em
 
-        out = em * prob_em + div * prob_div
+        out = em * prob_em + div * prob_div   # em是第0个通道（Module Output），div是第1个通道(Raw Output)
 
         return out
 
