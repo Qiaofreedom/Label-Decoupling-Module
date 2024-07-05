@@ -156,8 +156,8 @@ class DivOutLayer(nn.Module):
         self.div_stru = div_structure
         self.bn = bn
         self.drop_rate = drop_rate
-        self.em_actns = em_actns
-        self.div_actns = div_actns
+        self.em_actns = em_actns  # 激活函数
+        self.div_actns = div_actns # 激活函数
         self.cls_num = cls_num
         self.metric_out_dim = metric_out_dim
         self.if_train = if_train
@@ -175,7 +175,7 @@ class DivOutLayer(nn.Module):
             bag.append(nn.Linear(ni, no).cuda())
 
             if actn != None:
-                bag.append(actn)
+                bag.append(actn)  # 激活函数
             bag = nn.Sequential(*bag)
             self.em_basket.append(bag)
 
