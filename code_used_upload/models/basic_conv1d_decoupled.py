@@ -209,7 +209,7 @@ class DivOutLayer(nn.Module):
 
         x_em_deal = x
 
-        for layer in self.em_basket:
+        for layer in self.em_basket: # 
             x_em_deal = layer(x_em_deal)
 
         x_em_deal = torch.unsqueeze(x_em_deal, dim=-1)
@@ -219,12 +219,17 @@ class DivOutLayer(nn.Module):
             x_deal = x
             for layer in layers:
                 x_deal = layer(x_deal)
-                if x_deal.shape[-1] == self.metric_out_dim:
+                if x_deal.shape[-1] == self.metric_out_dim: # 它表示模型中某个特定维度的大小或输出特征的数量。对于一个形状为 (2, 3, 4) 的张量，x_deal.shape 将返回 (2, 3, 4)。
                     x_deal_feat = F.normalize(x_deal, p=2, dim=-1)
+                    
+                    # normalize 是这个模块中的一个函数，用于对输入张量进行归一化。
+                    # p=2 指定了范数的类型，这里使用的是 L2 范数（也称为欧几里得范数）。L2 范数是所有元素的平方和的平方根。
+                    # dim=-1 指定了进行归一化的维度。-1 表示最后一个维度。
+                    
                     feats.append(x_deal_feat)
 
-                if x_deal.shape[-1] == 1 and count == 1:
-                    cat_out = x_deal
+                if x_deal.shape[-1] == 1 and count == 1: # 检查 x_deal 的最后一个维度是否为 1。检查 count 是否等于 1，即这是第一个处理的 x_deal 张量。
+                    cat_out = x_deal  
                 if x_deal.shape[-1] == 1 and count != 1:
                     cat_out = torch.cat((cat_out, x_deal), dim=-1)
 
