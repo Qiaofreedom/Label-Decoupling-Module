@@ -153,12 +153,12 @@ class DivOutLayer(nn.Module):
     def __init__(self, em_structure, div_structure, bn, drop_rate, em_actns, div_actns, cls_num, metric_out_dim, if_train, **kwargs):
         super().__init__()
         self.em_stru = em_structure
-        self.div_stru = div_structure
+        self.div_stru = div_structure # 每个embedding space的结构
         self.bn = bn
         self.drop_rate = drop_rate
         self.em_actns = em_actns  # 激活函数
         self.div_actns = div_actns # 激活函数
-        self.cls_num = cls_num
+        self.cls_num = cls_num #类型的数量
         self.metric_out_dim = metric_out_dim
         self.if_train = if_train
         self.baskets = nn.ModuleList()
@@ -180,7 +180,7 @@ class DivOutLayer(nn.Module):
             self.em_basket.append(bag)
 
 
-        for div_num in range(self.cls_num):
+        for div_num in range(self.cls_num): # 有多少类就有多少个cls_num。  div_num代表每个类，也就是每个embedding space。
             sub_basket = nn.ModuleList()
             for ni, no, p, actn in zip(self.div_stru[:-1], self.div_stru[1:], self.drop_rate, self.div_actns):
                 bag = []
@@ -195,9 +195,9 @@ class DivOutLayer(nn.Module):
                 if actn != None:
                     bag.append(actn)
                 bag = nn.Sequential(*bag)
-                sub_basket.append(bag)
+                sub_basket.append(bag) # 也就是每个embedding space
 
-            self.baskets.append(sub_basket)
+            self.baskets.append(sub_basket) # 也就是所有的 embedding space
 
 
 
@@ -228,14 +228,15 @@ class DivOutLayer(nn.Module):
                     
                     feats.append(x_deal_feat)
 
-                if x_deal.shape[-1] == 1 and count == 1: # 检查 x_deal 的最后一个维度是否为 1。检查 count 是否等于 1，即这是第一个处理的 x_deal 张量。
+                if x_deal.shape[-1] == 1 and count == 1:  # 检查 x_deal 的最后一个维度是否为 1。检查 count 是否等于 1，即这是第一个处理的 x_deal 张量。
                     cat_out = x_deal  
                 if x_deal.shape[-1] == 1 and count != 1:
                     cat_out = torch.cat((cat_out, x_deal), dim=-1)
 
-        cat_out = torch.unsqueeze(cat_out, dim=-1)
+        cat_out = torch.unsqueeze(cat_out, dim=-1) # torch.unsqueeze 函数将 cat_out 的指定维度 dim 增加一个维度。在这里，dim=-1 表示在 cat_out 的最后一个维度上增加一个新的维度。
+        # 如果 cat_out 的形状是 (3, 2)，那么 torch.unsqueeze(cat_out, dim=-1) 的输出形状将是 (3, 2, 1)。
 
-        out = self.aggre(torch.cat((x_em_deal, cat_out), dim=-1))
+        out = self.aggre(torch.cat((x_em_deal, cat_out), dim=-1)) # 在最后一维上cat
         if self.if_train == True:
             return [out, feats]
         else:
