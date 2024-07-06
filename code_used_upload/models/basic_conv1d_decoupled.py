@@ -148,11 +148,11 @@ class rSE(nn.Module):
 
         return out
 
-class DivOutLayer(nn.Module):
+class DivOutLayer(nn.Module): #这个是LDM结构。x是LDM结构中的Module Input部分
 
     def __init__(self, em_structure, div_structure, bn, drop_rate, em_actns, div_actns, cls_num, metric_out_dim, if_train, **kwargs):
         super().__init__()
-        self.em_stru = em_structure
+        self.em_stru = em_structure # 基本的卷积模型
         self.div_stru = div_structure # 每个embedding space的结构
         self.bn = bn
         self.drop_rate = drop_rate
@@ -209,12 +209,12 @@ class DivOutLayer(nn.Module):
 
         x_em_deal = x
 
-        for layer in self.em_basket: # 
+        for layer in self.em_basket: # 基本的卷积模型
             x_em_deal = layer(x_em_deal)
 
-        x_em_deal = torch.unsqueeze(x_em_deal, dim=-1)
+        x_em_deal = torch.unsqueeze(x_em_deal, dim=-1) # 基本的卷积模型的输出，也就是论文里面的Raw Output（LDM结构里面的Module Input）
 
-        for layers in self.baskets:
+        for layers in self.baskets: # 也就是所有的 embedding space
             count += 1
             x_deal = x
             for layer in layers:
@@ -233,10 +233,11 @@ class DivOutLayer(nn.Module):
                 if x_deal.shape[-1] == 1 and count != 1:
                     cat_out = torch.cat((cat_out, x_deal), dim=-1)
 
-        cat_out = torch.unsqueeze(cat_out, dim=-1) # torch.unsqueeze 函数将 cat_out 的指定维度 dim 增加一个维度。在这里，dim=-1 表示在 cat_out 的最后一个维度上增加一个新的维度。
+        cat_out = torch.unsqueeze(cat_out, dim=-1)  #这里是LDM的结构的输出也就是Module Output
+        # torch.unsqueeze 函数将 cat_out 的指定维度 dim 增加一个维度。在这里，dim=-1 表示在 cat_out 的最后一个维度上增加一个新的维度。
         # 如果 cat_out 的形状是 (3, 2)，那么 torch.unsqueeze(cat_out, dim=-1) 的输出形状将是 (3, 2, 1)。
 
-        out = self.aggre(torch.cat((x_em_deal, cat_out), dim=-1)) # 在最后一维上cat
+        out = self.aggre(torch.cat((x_em_deal, cat_out), dim=-1)) # 在最后一维上cat，然后做： self.aggre = rSE(nin=cls_num, reduce=cls_num // 2)。见123行
         if self.if_train == True:
             return [out, feats]
         else:
