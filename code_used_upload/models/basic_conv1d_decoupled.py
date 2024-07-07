@@ -212,7 +212,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。x是LDM结构中的Module In
         for layer in self.em_basket: # 基本的卷积模型
             x_em_deal = layer(x_em_deal)
 
-        x_em_deal = torch.unsqueeze(x_em_deal, dim=-1) # 基本的卷积模型的输出，也就是论文里面的Raw Output（LDM结构里面的Module Input）
+        x_em_deal = torch.unsqueeze(x_em_deal, dim=-1) # 基本的卷积模型的输出，也就是论文Fig.3.(b)里面的Raw Output（LDM结构里面的Module Input）
 
         for layers in self.baskets: # 也就是所有的 embedding space
             count += 1
@@ -241,7 +241,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。x是LDM结构中的Module In
         if self.if_train == True:
             return [out, feats]
         else:
-            return out
+            return out   # 是论文Fig.3.(b)里面的 Final Output.已经融合了Raw Output和Module Output两种Output。
 
 def create_head1d(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, ps:Floats=0.5, bn_final:bool=False, bn:bool=True, act="relu", concat_pooling=True):
     "Model head that takes `nf` features, runs through `lin_ftrs`, and about `nc` classes; added bn and act here"
