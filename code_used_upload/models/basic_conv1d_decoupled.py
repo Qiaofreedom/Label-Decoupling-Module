@@ -251,13 +251,18 @@ def create_head1d(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, ps:Fl
     # lin_ftrs 确定了线性层的特征数量。如果没有提供，默认将其设置为 [2*nf, nc]（使用 concat_pooling）或 [nf, nc]
     ps = listify(ps)  # ps = listify(ps) 这行代码的作用是将 ps 转换为列表形式 
     if len(ps)==1: ps = [ps[0]/2] * (len(lin_ftrs)-2) + ps  # ps 是 dropout 的概率，如果是单个值，将其扩展为与 lin_ftrs 匹配的列表。ps[0] 是 ps 列表中的唯一元素。ps[0]/2 是将这个元素的值减半。[ps[0]/2] * (len(lin_ftrs)-2) 创建一个包含 (len(lin_ftrs)-2) 个 ps[0]/2 的列表。这一步是为了给中间的线性层设置较小的 dropout 概率。
-    # + ps 是将原来的 ps 列表（包含一个元素）追加到新列表的末尾。  dropout 概率 ps 只需要为每两个相邻层之间的连接设置，因此 ps 的长度应该是 len(lin_ftrs) - 1。也就是说，如果len(lin_ftrs)的元素为4，则ps列表的长度为3.
-    actns = [nn.ReLU(inplace=True) if act=="relu" else nn.ELU(inplace=True)] * (len(lin_ftrs)-2) + [None]
+    # + ps 是将原来的 ps 列表（包含一个元素）追加到新列表的末尾。dropout 概率 ps 只需要为每两个相邻层之间的连接设置，因此 ps 的长度应该是 len(lin_ftrs) - 1。也就是说，如果len(lin_ftrs)的元素为4，则ps列表的长度为3.
+    actns = [nn.ReLU(inplace=True) if act=="relu" else nn.ELU(inplace=True)] * (len(lin_ftrs)-2) + [None]  # 这里列表的元素个数和ps这个列表的元素个数一致。
+    # actns 是激活函数的列表。[nn.ReLU(inplace=True) if act=="relu" else nn.ELU(inplace=True)] 创建一个包含一个激活函数的列表。乘以 (len(lin_ftrs) - 2)，生成一个包含合适数量激活函数的列表。+ [None] 添加一个 None，表示最后一层线性层不需要激活函数。
     layers = [AdaptiveConcatPool1d() if concat_pooling else nn.MaxPool1d(2), Flatten()]
     for ni,no,p,actn in zip(lin_ftrs[:-1],lin_ftrs[1:],ps,actns):
-        layers += bn_drop_lin(ni,no,bn,p,actn)
-    if bn_final: layers.append(nn.BatchNorm1d(lin_ftrs[-1], momentum=0.01))
-    return nn.Sequential(*layers)
+        layers += bn_drop_lin(ni,no,bn,p,actn)  # bn_drop_lin(ni, no, bn, p, actn) 创建一个线性层，并可能添加批归一化和 dropout 层，然后将这些层添加到 layers
+        # 举例说明：假设 lin_ftrs 为 [128, 256, 512, 10]，ps 为 [0.25, 0.25, 0.5]，actns 为 [ReLU(), ReLU(), None]，则 zip 后得到：
+        # (128, 256, 0.25, ReLU())
+        # (256, 512, 0.25, ReLU())
+        # (512, 10, 0.5, None)
+    if bn_final: layers.append(nn.BatchNorm1d(lin_ftrs[-1], momentum=0.01)) # 如果 bn_final 为 True，在最后添加一个 BatchNorm1d 层。lin_ftrs[-1] 是最后一个线性层的输出特征数。
+    return nn.Sequential(*layers)  # 使用 nn.Sequential 将 layers 中的所有层组合成一个 序列模型，并返回。
 
 def create_head1d_decoupled(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, div_lin_ftrs:Optional[Collection[int]]=None, ps:Floats=0.5, bn_final:bool=False, bn:bool=True, act="relu", concat_pooling=True, if_train=True):
     "Model head that takes `nf` features, runs through `lin_ftrs`, and about `nc` classes; added bn and act here"
