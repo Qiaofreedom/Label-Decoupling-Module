@@ -245,9 +245,13 @@ class DivOutLayer(nn.Module): #这个是LDM结构。x是LDM结构中的Module In
 
 def create_head1d(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, ps:Floats=0.5, bn_final:bool=False, bn:bool=True, act="relu", concat_pooling=True):
     "Model head that takes `nf` features, runs through `lin_ftrs`, and about `nc` classes; added bn and act here"
+    # 深度学习模型的头部（head），主要用于处理1维特征。这个头部将输入特征通过一系列的全连接层和其他层，最终输出指定数量的类别（nc）
+    # nf：输入特征的数量。nc：输出类别的数量。lin_ftrs：线性层的特征数量列表。ps：dropout 的概率。bn_final：是否在最后一层添加 BatchNorm。bn：是否在每个全连接层后添加 BatchNorm。act：激活函数的类型，可以是 'relu' 或 'elu'。concat_pooling：是否使用 AdaptiveConcatPool1d 作为池化层。
     lin_ftrs = [2*nf if concat_pooling else nf, nc] if lin_ftrs is None else [2*nf if concat_pooling else nf] + lin_ftrs + [nc] #was [nf, 512,nc]
-    ps = listify(ps)
-    if len(ps)==1: ps = [ps[0]/2] * (len(lin_ftrs)-2) + ps
+    # lin_ftrs 确定了线性层的特征数量。如果没有提供，默认将其设置为 [2*nf, nc]（使用 concat_pooling）或 [nf, nc]
+    ps = listify(ps)  # ps = listify(ps) 这行代码的作用是将 ps 转换为列表形式 
+    if len(ps)==1: ps = [ps[0]/2] * (len(lin_ftrs)-2) + ps  # ps 是 dropout 的概率，如果是单个值，将其扩展为与 lin_ftrs 匹配的列表。ps[0] 是 ps 列表中的唯一元素。ps[0]/2 是将这个元素的值减半。[ps[0]/2] * (len(lin_ftrs)-2) 创建一个包含 (len(lin_ftrs)-2) 个 ps[0]/2 的列表。这一步是为了给中间的线性层设置较小的 dropout 概率。
+    # + ps 是将原来的 ps 列表（包含一个元素）追加到新列表的末尾。  dropout 概率 ps 只需要为每两个相邻层之间的连接设置，因此 ps 的长度应该是 len(lin_ftrs) - 1。也就是说，如果len(lin_ftrs)的元素为4，则ps列表的长度为3.
     actns = [nn.ReLU(inplace=True) if act=="relu" else nn.ELU(inplace=True)] * (len(lin_ftrs)-2) + [None]
     layers = [AdaptiveConcatPool1d() if concat_pooling else nn.MaxPool1d(2), Flatten()]
     for ni,no,p,actn in zip(lin_ftrs[:-1],lin_ftrs[1:],ps,actns):
