@@ -148,7 +148,7 @@ class rSE(nn.Module):
 
         return out
 
-class DivOutLayer(nn.Module): #这个是LDM结构。x是LDM结构中的Module Input部分
+class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Module Input部分
 
     def __init__(self, em_structure, div_structure, bn, drop_rate, em_actns, div_actns, cls_num, metric_out_dim, if_train, **kwargs):
         super().__init__()
@@ -270,11 +270,12 @@ def create_head1d_decoupled(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=N
     div_lin_ftrs = [2*nf if concat_pooling else nf, nc] if div_lin_ftrs is None else [2*nf if concat_pooling else nf] + div_lin_ftrs + [1] #was [nf, 512, 1]   # div_lin_ftrs是每个embedding space的结构的 线性层的 特征数量
     ps = listify(ps)
     if len(ps)==1: ps = [ps[0]/2] * (len(lin_ftrs)-2) + ps
-    em_actns = [nn.ReLU(inplace=True) if act == "relu" else nn.ELU(inplace=True)] * (len(lin_ftrs) - 2) + [None]
-    div_actns = [nn.ReLU(inplace=True) if act=="relu" else nn.ELU(inplace=True)] * (len(div_lin_ftrs)-3) + [None, None]
+    em_actns = [nn.ReLU(inplace=True) if act == "relu" else nn.ELU(inplace=True)] * (len(lin_ftrs) - 2) + [None] # 基本模型里面的 激活函数
+    div_actns = [nn.ReLU(inplace=True) if act=="relu" else nn.ELU(inplace=True)] * (len(div_lin_ftrs)-3) + [None, None] # LDM结构里面的 激活函数
     layers = [AdaptiveConcatPool1d() if concat_pooling else nn.MaxPool1d(2), Flatten(),
               DivOutLayer(em_structure=lin_ftrs, div_structure=div_lin_ftrs, bn=bn, drop_rate=ps, em_actns=em_actns, div_actns=div_actns, cls_num=nc, metric_out_dim=div_lin_ftrs[-2], if_train=if_train)]
-            # lin_ftrs 确定了 基本模型的 线性层的 特征数量。# div_lin_ftrs是每个embedding space的结构的 线性层的 特征数量
+        # DivOutLayer是LDM结构。输入x是LDM结构中的Module Input部分        
+        # lin_ftrs 确定了 基本模型的 线性层的 特征数量。# div_lin_ftrs是每个embedding space的结构的 线性层的 特征数量
 
     if bn_final: layers.append(nn.BatchNorm1d(lin_ftrs[-1], momentum=0.01))
     return nn.Sequential(*layers)
