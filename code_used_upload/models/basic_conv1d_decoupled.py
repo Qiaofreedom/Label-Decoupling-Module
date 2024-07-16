@@ -266,14 +266,15 @@ def create_head1d(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, ps:Fl
 
 def create_head1d_decoupled(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, div_lin_ftrs:Optional[Collection[int]]=None, ps:Floats=0.5, bn_final:bool=False, bn:bool=True, act="relu", concat_pooling=True, if_train=True):
     "Model head that takes `nf` features, runs through `lin_ftrs`, and about `nc` classes; added bn and act here"
-    lin_ftrs = [2*nf if concat_pooling else nf, nc] if lin_ftrs is None else [2*nf if concat_pooling else nf] + lin_ftrs + [nc]  # was [nf, 512,nc]
-    div_lin_ftrs = [2*nf if concat_pooling else nf, nc] if div_lin_ftrs is None else [2*nf if concat_pooling else nf] + div_lin_ftrs + [1] #was [nf, 512,nc]
+    lin_ftrs = [2*nf if concat_pooling else nf, nc] if lin_ftrs is None else [2*nf if concat_pooling else nf] + lin_ftrs + [nc]  # was [nf, 512,nc]   # lin_ftrs 确定了 基本模型的 线性层的 特征数量。
+    div_lin_ftrs = [2*nf if concat_pooling else nf, nc] if div_lin_ftrs is None else [2*nf if concat_pooling else nf] + div_lin_ftrs + [1] #was [nf, 512, 1]   # div_lin_ftrs是每个embedding space的结构的 线性层的 特征数量
     ps = listify(ps)
     if len(ps)==1: ps = [ps[0]/2] * (len(lin_ftrs)-2) + ps
     em_actns = [nn.ReLU(inplace=True) if act == "relu" else nn.ELU(inplace=True)] * (len(lin_ftrs) - 2) + [None]
     div_actns = [nn.ReLU(inplace=True) if act=="relu" else nn.ELU(inplace=True)] * (len(div_lin_ftrs)-3) + [None, None]
     layers = [AdaptiveConcatPool1d() if concat_pooling else nn.MaxPool1d(2), Flatten(),
               DivOutLayer(em_structure=lin_ftrs, div_structure=div_lin_ftrs, bn=bn, drop_rate=ps, em_actns=em_actns, div_actns=div_actns, cls_num=nc, metric_out_dim=div_lin_ftrs[-2], if_train=if_train)]
+            # lin_ftrs 确定了 基本模型的 线性层的 特征数量。# div_lin_ftrs是每个embedding space的结构的 线性层的 特征数量
 
     if bn_final: layers.append(nn.BatchNorm1d(lin_ftrs[-1], momentum=0.01))
     return nn.Sequential(*layers)
