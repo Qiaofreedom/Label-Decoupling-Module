@@ -300,7 +300,7 @@ class basic_conv1d(nn.Sequential):
                 layers_tmp.append(nn.MaxPool1d(pool,stride=pool_stride,padding=(pool-1)//2))
             if(squeeze_excite_reduction>0):
                 layers_tmp.append(SqueezeExcite1d(filters[i],squeeze_excite_reduction))
-            layers.append(nn.Sequential(*layers_tmp))
+            layers.append(nn.Sequential(*layers_tmp))  # 将临时层包装在 nn.Sequential 中，并添加到主 layers 列表中。
 
         #head
         #layers.append(nn.AdaptiveAvgPool1d(1))    
@@ -315,18 +315,18 @@ class basic_conv1d(nn.Sequential):
         
         super().__init__(*layers)
     
-    def get_layer_groups(self):
-        return (self[2],self[-1])
+    def get_layer_groups(self): # 这个方法返回一个元组，包含两个层组。
+        return (self[2],self[-1])  # 返回网络中的第三层，网络中的最后一层
 
-    def get_output_layer(self):
-        if self.headless is False:
-            return self[-1][-1]
+    def get_output_layer(self): # 这个方法返回模型的输出层。
+        if self.headless is False: 
+            return self[-1][-1]   # self[-1][-1]：表示网络中的最后一层的最后一个元素。这通常是输出层。
         else:
-            return None
+            return None   # 如果 self.headless 为 True，表示模型没有head部分，返回 None
     
-    def set_output_layer(self,x):
+    def set_output_layer(self,x): # 这个方法设置模型的输出层。
         if self.headless is False:
-            self[-1][-1] = x
+            self[-1][-1] = x  # 表示网络中的最后一层的最后一个元素。这通常是输出层。
 
 
 class basic_conv1d_decoupled(nn.Sequential):
