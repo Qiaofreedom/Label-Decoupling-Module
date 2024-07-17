@@ -159,7 +159,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
         self.em_actns = em_actns  # 激活函数
         self.div_actns = div_actns # 激活函数
         self.cls_num = cls_num #类型的数量
-        self.metric_out_dim = metric_out_dim  # metric_out_dim 指的是 每个embedding space的结构的 separation layer的 特征数量（论文里面的j）。
+        self.metric_out_dim = metric_out_dim  # metric_out_dim 指的是 每个embedding space的结构的 separation layer的 输出向量的 最后一个维度 sequence_length（特征维度）（论文里面的j.超参数）如果是没有加LDM的结构的模型里面，这个在自己的工作里面大概是4820。
         self.if_train = if_train
         self.baskets = nn.ModuleList()
         self.em_basket = nn.ModuleList()
@@ -219,7 +219,10 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
             x_deal = x
             for layer in layers: # 遍历当前嵌入空间中的每一层（layer），layers 是一个层的列表
                 x_deal = layer(x_deal)
-                if x_deal.shape[-1] == self.metric_out_dim:  # x_deal 是一个三维张量， 其形状为 (batch_size, sequence_length, feature_dim)。 metric_out_dim 指的是最后一个维度 feature_dim（特征维度）（它影响到如何设计和连接后续的网络层）。x_deal.shape[-1]表示最后一个维度（特征维度）的大小。 
+                if x_deal.shape[-1] == self.metric_out_dim:  
+                    # x_deal 是一个三维张量， 其形状为 (batch_size, lead, sequence_length)。 
+                    # metric_out_dim 指的是最后一个维度 sequence_length（特征维度）（论文里面的j.超参数）（它影响到如何设计和连接后续的网络层）。x_deal.shape[-1]表示最后一个维度（特征维度）的大小。 
+                    
                     x_deal_feat = F.normalize(x_deal, p=2, dim=-1)
                     
                     # normalize 是这个模块中的一个函数，用于对输入张量进行归一化。归一化可以防止数值爆炸或消失，改善梯度传播，提升模型的训练效果。归一化后的特征通常会使得模型在优化和泛化上表现更好。归一化后的向量在计算余弦相似度等度量时非常有用，因为归一化将所有向量的长度标准化到相同的尺度。
