@@ -266,8 +266,8 @@ def create_head1d(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, ps:Fl
 
 def create_head1d_decoupled(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, div_lin_ftrs:Optional[Collection[int]]=None, ps:Floats=0.5, bn_final:bool=False, bn:bool=True, act="relu", concat_pooling=True, if_train=True):
     "Model head that takes `nf` features, runs through `lin_ftrs`, and about `nc` classes; added bn and act here"
-    lin_ftrs = [2*nf if concat_pooling else nf, nc] if lin_ftrs is None else [2*nf if concat_pooling else nf] + lin_ftrs + [nc]  # was [nf, 512,nc]   # lin_ftrs 确定了 head的 线性层的 特征数量。
-    div_lin_ftrs = [2*nf if concat_pooling else nf, nc] if div_lin_ftrs is None else [2*nf if concat_pooling else nf] + div_lin_ftrs + [1] #was [nf, 512, 1]   # div_lin_ftrs是每个embedding space的结构的 线性层的 特征数量
+    lin_ftrs = [2*nf if concat_pooling else nf, nc] if lin_ftrs is None else [2*nf if concat_pooling else nf] + lin_ftrs + [nc]  # was [nf, 512,nc]   # lin_ftrs 确定了 传统的head的 倒数第二层的 特征数量（论文里面的P值）。
+    div_lin_ftrs = [2*nf if concat_pooling else nf, nc] if div_lin_ftrs is None else [2*nf if concat_pooling else nf] + div_lin_ftrs + [1] #was [nf, 512, 1]   # div_lin_ftrs是每个embedding space的结构的 separation layer的 特征数量(论文里面的j值)
     ps = listify(ps)
     if len(ps)==1: ps = [ps[0]/2] * (len(lin_ftrs)-2) + ps
     em_actns = [nn.ReLU(inplace=True) if act == "relu" else nn.ELU(inplace=True)] * (len(lin_ftrs) - 2) + [None] # 基本模型里面的 激活函数
