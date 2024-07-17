@@ -180,7 +180,7 @@ class XResNet1d_decoupled(nn.Sequential):
     def __init__(self, block, expansion, layers, p=0.0, input_channels=3, num_classes=1000, stem_szs=(32, 32, 64),
                  kernel_size=5, kernel_size_stem=5,
                  widen=1.0, sa=False, act_cls=nn.ReLU, lin_ftrs_head=None, div_lin_ftrs_head=None, ps_head=0.5, bn_final_head=False,
-                 bn_head=True, act_head="relu", concat_pooling=True, if_train=True, **kwargs):
+                 bn_head=True, act_head="relu", concat_pooling=True, if_train=True, **kwargs):  # [2, 2, 2, 2] 列表对应的是 __init__ 方法中的 layers 参数。
         store_attr(self, 'block,expansion,act_cls')
         stem_szs = [input_channels, *stem_szs]
         stem = [ConvLayer(stem_szs[i], stem_szs[i + 1], ks=kernel_size_stem, stride=2 if i == 0 else 1, act_cls=act_cls,
