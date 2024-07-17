@@ -159,7 +159,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
         self.em_actns = em_actns  # 激活函数
         self.div_actns = div_actns # 激活函数
         self.cls_num = cls_num #类型的数量
-        self.metric_out_dim = metric_out_dim
+        self.metric_out_dim = metric_out_dim  # metric_out_dim 指的是 每个embedding space的结构的 separation layer的 特征数量。
         self.if_train = if_train
         self.baskets = nn.ModuleList()
         self.em_basket = nn.ModuleList()
@@ -219,7 +219,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
             x_deal = x
             for layer in layers:
                 x_deal = layer(x_deal)
-                if x_deal.shape[-1] == self.metric_out_dim: # 它表示模型中某个特定维度的大小或输出特征的数量。对于一个形状为 (2, 3, 4) 的张量，x_deal.shape 将返回 (2, 3, 4)。
+                if x_deal.shape[-1] == self.metric_out_dim: # metric_out_dim 指的是 每个embedding space的结构的 separation layer的 特征数量。    对于一个形状为 (2, 3, 4) 的张量，x_deal.shape 将返回 (2, 3, 4)。
                     x_deal_feat = F.normalize(x_deal, p=2, dim=-1)
                     
                     # normalize 是这个模块中的一个函数，用于对输入张量进行归一化。
