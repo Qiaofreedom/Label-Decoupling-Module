@@ -222,7 +222,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
                 if x_deal.shape[-1] == self.metric_out_dim:  # x_deal 是一个三维张量， 其形状为 (batch_size, sequence_length, feature_dim)。 metric_out_dim 指的是最后一个维度 feature_dim（特征维度）（它影响到如何设计和连接后续的网络层）。x_deal.shape[-1]表示最后一个维度（特征维度）的大小。 
                     x_deal_feat = F.normalize(x_deal, p=2, dim=-1)
                     
-                    # normalize 是这个模块中的一个函数，用于对输入张量进行归一化。
+                    # normalize 是这个模块中的一个函数，用于对输入张量进行归一化。归一化可以防止数值爆炸或消失，改善梯度传播，提升模型的训练效果。归一化后的特征通常会使得模型在优化和泛化上表现更好。归一化后的向量在计算余弦相似度等度量时非常有用，因为归一化将所有向量的长度标准化到相同的尺度。
                     # p=2 指定了范数的类型，这里使用的是 L2 范数（也称为欧几里得范数）。L2 范数是所有元素的平方和的平方根。
                     # dim=-1 指定了进行归一化的维度。-1 表示最后一个维度。
                     
