@@ -153,7 +153,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
     def __init__(self, em_structure, div_structure, bn, drop_rate, em_actns, div_actns, cls_num, metric_out_dim, if_train, **kwargs):
         super().__init__()
         self.em_stru = em_structure  # lin_ftrs 确定了 传统的head的 倒数第二层的 特征数量（论文里面的P值）。
-        self.div_stru = div_structure   # div_lin_ftrs是  加入了LDM结构的head部分的  每个embedding space的结构的 separation layer的 输出特征数量
+        self.div_stru = div_structure   # div_lin_ftrs定义了 head部分 加入了LDM结构的 separation layer层。包括输入维度、隐藏层结构和最终输出维度。 如果 div_lin_ftrs=[512, 256]，那么 separation layer 结构就是：  输入维度 → 512 → 256 → 1（最终输出）
         self.bn = bn
         self.drop_rate = drop_rate
         self.em_actns = em_actns  # 激活函数
@@ -165,22 +165,22 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
         self.em_basket = nn.ModuleList()
         self.aggre = rSE(nin=cls_num, reduce=cls_num // 2)
 
-        for ni, no, p, actn in zip(self.em_stru[:-1], self.em_stru[1:], self.drop_rate, self.em_actns):
+        for ni, no, p, actn in zip(self.em_stru[:-1], self.em_stru[1:], self.drop_rate, self.em_actns):  这段代码的作用是构建 em_basket 这个神经网络模块，它是 LDM 结构中处理 Raw Output（即 Module Input）的部分。它处理 Raw Output（即 Module Input），输出 Raw Features，用于后续 Final Output 计算。
             bag = []
             if self.bn:
-                bag.append(nn.BatchNorm1d(ni).cuda())
+                bag.append(nn.BatchNorm1d(ni).cuda())  # 添加 BatchNorm 归一化层
             if p != 0:
-                bag.append(nn.Dropout(p).cuda())
+                bag.append(nn.Dropout(p).cuda())   # 添加 Dropout 防止过拟合
 
-            bag.append(nn.Linear(ni, no).cuda())
+            bag.append(nn.Linear(ni, no).cuda()) # 关键的全连接层
 
             if actn != None:
                 bag.append(actn)  # 激活函数
-            bag = nn.Sequential(*bag)
-            self.em_basket.append(bag)
+            bag = nn.Sequential(*bag)  # 将所有层组合成一个 Sequential 模块
+            self.em_basket.append(bag)  # 加入 `em_basket` 列表
 
 
-        for div_num in range(self.cls_num): # 有多少类就有多少个cls_num。  div_num代表每个类，也就是每个embedding space。
+        for div_num in range(self.cls_num): # 有多少类就有多少个cls_num。  div_num代表每个类，也就是每个separation layer
             sub_basket = nn.ModuleList()
             for ni, no, p, actn in zip(self.div_stru[:-1], self.div_stru[1:], self.drop_rate, self.div_actns):
                 bag = []
@@ -190,61 +190,72 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
                 if p != 0:
                     bag.append(nn.Dropout(p).cuda())
 
-                bag.append(nn.Linear(ni, no).cuda())
+                bag.append(nn.Linear(ni, no).cuda())   # 关键：最后一层 no = 1. 每个 separation layer 只给出 1 个 Cik，所以 div_lin_ftrs[-1] = 1 是正确的，而不是 K。
+                # separation layer 不直接输出 K 维向量. 而是有 K 个 separation layer，每个输出 1 维数值（Cik）
+                # Separation Layer 并不是一个大网络输出 K 维 Cik，而是 K 个小网络，每个输出 1 个 Cik。
 
                 if actn != None:
-                    bag.append(actn)
-                bag = nn.Sequential(*bag)
-                sub_basket.append(bag) # 也就是每个embedding space
+                    bag.append(actn)    # 激活函数 (ReLU/ELU/PReLU)
+                bag = nn.Sequential(*bag)  # 将所有层组合成一个 Sequential 模块
+                sub_basket.append(bag)  # 每个类别 k 有一个 separation layer
 
-            self.baskets.append(sub_basket) # 也就是所有的 embedding space
+            self.baskets.append(sub_basket) # 所有类别的 separation layer. 说明 K 个类别各有 1 个 separation layer，每个 separation layer 的最终输出是 1（Cik）
 
 
 
 
     def forward(self, x):
-        cat_out = []
-        feats = []
+        cat_out = []  # 存放 LDM 计算得到的 `Cik`
+        feats = []  # 存放 LDM 归一化后的 `Cik`（用于后续可视化）
         count = 0
 
-        x_em_deal = x
+        # ========== 计算 Raw Output（传统的倒数第二层输出）==========
+        
+        x_em_deal = x # 这里的 x 是 Module Input，也就是 Fig.3(b) 里的输入
 
-        for layer in self.em_basket: # 基本的卷积模型
-            x_em_deal = layer(x_em_deal)
+        for layer in self.em_basket: 
+            x_em_deal = layer(x_em_deal) # 逐层通过 `em_basket`（传统 MLP ）
 
-        x_em_deal = torch.unsqueeze(x_em_deal, dim=-1) # 基本的卷积模型的输出，也就是论文Fig.3.(b)里面的Raw Output（LDM结构里面的Module Input）
+        x_em_deal = torch.unsqueeze(x_em_deal, dim=-1)   # 变成 (batch_size, P, 1)，其中 P 是传统倒数第二层的维度（Fig.3(b) 里的 Raw Output）
 
-        for layers in self.baskets: # 也就是所有的 embedding space. 每个layers都是一个embedding space
+        # ========== 计算 Module Output（LDM 结构的 Cik）==========
+        for layers in self.baskets:  # 遍历所有 embedding space，每个类别 K 都有自己的 `separation layer`
             count += 1
-            x_deal = x
+            x_deal = x  # 每个 separation layer 处理相同的输入（Module Input）
             for layer in layers: # 遍历当前嵌入空间中的每一层（layer），layers 是一个层的列表
-                x_deal = layer(x_deal)
-                if x_deal.shape[-1] == self.metric_out_dim:  
+                x_deal = layer(x_deal) 
+                if x_deal.shape[-1] == self.metric_out_dim:   # 说明这层是 `separation layer` 的倒数第二层（输出 j 维度的 Cik 向量）
                     # x_deal 是一个三维张量， 其形状为 (batch_size, lead, sequence_length)。 
                     # metric_out_dim 指的是最后一个维度 sequence_length（特征维度）（论文里面的j.超参数）（它影响到如何设计和连接后续的网络层）。x_deal.shape[-1]表示最后一个维度（特征维度）的大小。 
                     
                     x_deal_feat = F.normalize(x_deal, p=2, dim=-1)
                     
+                    # L2 归一化，用于计算度量学习损失（Triplet Loss）
                     # normalize 是这个模块中的一个函数，用于对输入张量进行归一化。归一化可以防止数值爆炸或消失，改善梯度传播，提升模型的训练效果。归一化后的特征通常会使得模型在优化和泛化上表现更好。归一化后的向量在计算余弦相似度等度量时非常有用，因为归一化将所有向量的长度标准化到相同的尺度。
                     # p=2 指定了范数的类型，这里使用的是 L2 范数（也称为欧几里得范数）。L2 范数是所有元素的平方和的平方根。
                     # dim=-1 指定了进行归一化的维度。-1 表示最后一个维度。
                     
                     feats.append(x_deal_feat)
 
-                if x_deal.shape[-1] == 1 and count == 1:  # 检查 x_deal 的最后一个维度是否为 1。检查 count 是否等于 1，即这是第一个处理的 x_deal 张量。
+                if x_deal.shape[-1] == 1 and count == 1:  # 检查 x_deal 的最后一个维度是否为 1。检查 count 是否等于 1。说明是最后一层，输出的是 `Cik` 值
                     cat_out = x_deal  
                 if x_deal.shape[-1] == 1 and count != 1:
-                    cat_out = torch.cat((cat_out, x_deal), dim=-1)
+                    cat_out = torch.cat((cat_out, x_deal), dim=-1)  # 多个类别的 `Cik` 值拼接在一起
 
-        cat_out = torch.unsqueeze(cat_out, dim=-1)  #这里是LDM的结构的输出也就是Module Output
+        cat_out = torch.unsqueeze(cat_out, dim=-1)  #这里是LDM的结构的输出也就是Module Output。 # 变成 (batch_size, K, 1)，其中 K 是类别数（每个类别对应一个 `Cik`）
         # torch.unsqueeze 函数将 cat_out 的指定维度 dim 增加一个维度。在这里，dim=-1 表示在 cat_out 的最后一个维度上增加一个新的维度。
         # 如果 cat_out 的形状是 (3, 2)，那么 torch.unsqueeze(cat_out, dim=-1) 的输出形状将是 (3, 2, 1)。
 
-        out = self.aggre(torch.cat((x_em_deal, cat_out), dim=-1)) # 在最后一维上cat，然后做： self.aggre = rSE(nin=cls_num, reduce=cls_num // 2)。见123行
+        # ========== 融合 Raw Output 和 Module Output ==========
+        out = self.aggre(torch.cat((x_em_deal, cat_out), dim=-1))  # `rSE`（r-SqueezeExcite）用于自适应加权 `Raw Output` 和 `Module Output`，得到 Final Output
+        
+        # 在最后一维上cat，然后做： self.aggre = rSE(nin=cls_num, reduce=cls_num // 2)。见123行
+
+        # ========== 选择是否返回度量学习特征 ==========
         if self.if_train == True:
-            return [out, feats]
+            return [out, feats] # 训练时返回 Final Output 和 归一化 `Cik`
         else:
-            return out   # 是论文Fig.3.(b)里面的 Final Output.已经融合了Raw Output和Module Output两种Output。
+            return out   # 推理时只返回 Final Output。 是论文Fig.3.(b)里面的 Final Output.已经融合了Raw Output和Module Output两种Output。
 
 def create_head1d(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, ps:Floats=0.5, bn_final:bool=False, bn:bool=True, act="relu", concat_pooling=True):
     "Model head that takes `nf` features, runs through `lin_ftrs`, and about `nc` classes; added bn and act here"
@@ -270,7 +281,8 @@ def create_head1d(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, ps:Fl
 def create_head1d_decoupled(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, div_lin_ftrs:Optional[Collection[int]]=None, ps:Floats=0.5, bn_final:bool=False, bn:bool=True, act="relu", concat_pooling=True, if_train=True):
     "Model head that takes `nf` features, runs through `lin_ftrs`, and about `nc` classes; added bn and act here"
     lin_ftrs = [2*nf if concat_pooling else nf, nc] if lin_ftrs is None else [2*nf if concat_pooling else nf] + lin_ftrs + [nc]  # was [nf, 512,nc]   # lin_ftrs 确定了 传统的head的 倒数第二层的 特征数量（论文里面的P值）。
-    div_lin_ftrs = [2*nf if concat_pooling else nf, nc] if div_lin_ftrs is None else [2*nf if concat_pooling else nf] + div_lin_ftrs + [1] #was [nf, 512, 1]   # div_lin_ftrs是  加入了LDM结构的head部分的  每个embedding space的结构的 separation layer的 输出特征数量
+    div_lin_ftrs = [2*nf if concat_pooling else nf, nc] if div_lin_ftrs is None else [2*nf if concat_pooling else nf] + div_lin_ftrs + [1] #was [nf, 512, 1]   # div_lin_ftrs定义了 head部分 加入了LDM结构的 separation layer层。包括输入维度、隐藏层结构和最终输出维度。
+    # 如果 div_lin_ftrs=[512, 256]，那么 separation layer 结构就是：  输入维度 → 512 → 256 → 1（最终输出）
     ps = listify(ps)
     if len(ps)==1: ps = [ps[0]/2] * (len(lin_ftrs)-2) + ps
     em_actns = [nn.ReLU(inplace=True) if act == "relu" else nn.ELU(inplace=True)] * (len(lin_ftrs) - 2) + [None] # 基本模型里面的 激活函数
@@ -278,7 +290,8 @@ def create_head1d_decoupled(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=N
     layers = [AdaptiveConcatPool1d() if concat_pooling else nn.MaxPool1d(2), Flatten(),
               DivOutLayer(em_structure=lin_ftrs, div_structure=div_lin_ftrs, bn=bn, drop_rate=ps, em_actns=em_actns, div_actns=div_actns, cls_num=nc, metric_out_dim=div_lin_ftrs[-2], if_train=if_train)]
         # DivOutLayer是LDM结构。输入x是LDM结构中的Module Input部分        
-        # lin_ftrs 确定了 传统的head的 倒数第二层的 特征数量（论文里面的P值）。# div_lin_ftrs是  加入了LDM结构的head部分的  每个embedding space的结构的 separation layer的 输出特征数量
+        # lin_ftrs 确定了 传统的head的 倒数第二层的 特征数量（论文里面的P值）。# div_lin_ftrs定义了 head部分 加入了LDM结构的 separation layer层。包括输入维度、隐藏层结构和最终输出维度。 如果 div_lin_ftrs=[512, 256]，那么 separation layer 结构就是：  输入维度 → 512 → 256 → 1（最终输出）
+
 
     if bn_final: layers.append(nn.BatchNorm1d(lin_ftrs[-1], momentum=0.01))
     return nn.Sequential(*layers)
