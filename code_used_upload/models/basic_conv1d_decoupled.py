@@ -310,8 +310,14 @@ class basic_conv1d(nn.Sequential):
         #layers.append(nn.Linear(filters[-1],num_classes))
         #head #inplace=True leads to a runtime error see ReLU+ dropout https://discuss.pytorch.org/t/relu-dropout-inplace/13467/5
         self.headless = headless
+        # 如果 headless=True，则不加分类头部，只输出特征向量。
+        # 如果 headless=False，则加上分类头部，输出分类结果。
+        # 作用：headless=True → 适用于提取特征，不做分类（例如迁移学习）。headless=False → 适用于完整的分类任务
         if(headless is True):
             head = nn.Sequential(nn.AdaptiveAvgPool1d(1),Flatten())
+            # 先进行 全局平均池化 (AdaptiveAvgPool1d(1))，将 seq_len 维度压缩成 1（相当于去掉时间维度）。
+            # 然后 展平 (Flatten())，变成 [batch, features] 的形状，但不添加额外的全连接分类层。
+            # 这样，模型只输出一个压缩后的特征向量，而不会进行最终的分类预测
         else:
             head=create_head1d(filters[-1], nc=num_classes, lin_ftrs=lin_ftrs_head, ps=ps_head, bn_final=bn_final_head, bn=bn_head, act=act_head, concat_pooling=concat_pooling)
         layers.append(head)
@@ -367,8 +373,14 @@ class basic_conv1d_decoupled(nn.Sequential):
         # layers.append(nn.Linear(filters[-1],num_classes))
         # head #inplace=True leads to a runtime error see ReLU+ dropout https://discuss.pytorch.org/t/relu-dropout-inplace/13467/5
         self.headless = headless
+        # 如果 headless=True，则不加分类头部，只输出特征向量。
+        # 如果 headless=False，则加上分类头部，输出分类结果。
+        # 作用：headless=True → 适用于提取特征，不做分类（例如迁移学习）。headless=False → 适用于完整的分类任务
         if (headless is True):
             head = nn.Sequential(nn.AdaptiveAvgPool1d(1), Flatten())
+            # 先进行 全局平均池化 (AdaptiveAvgPool1d(1))，将 seq_len 维度压缩成 1（相当于去掉时间维度）。
+            # 然后 展平 (Flatten())，变成 [batch, features] 的形状，但不添加额外的全连接分类层。
+            # 这样，模型只输出一个压缩后的特征向量，而不会进行最终的分类预测
         else:
             head = create_head1d_decoupled(filters[-1], nc=num_classes, lin_ftrs=lin_ftrs_head, div_lin_ftrs=div_lin_ftrs_head, ps=ps_head,
                                  bn_final=bn_final_head, bn=bn_head, act=act_head, concat_pooling=concat_pooling, if_train=if_train)
