@@ -180,6 +180,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
             self.em_basket.append(bag)  # 加入 `em_basket` 列表
 
 
+        
         for div_num in range(self.cls_num): # 有多少类就有多少个cls_num。  div_num代表每个类，也就是每个separation layer
             sub_basket = nn.ModuleList()
             for ni, no, p, actn in zip(self.div_stru[:-1], self.div_stru[1:], self.drop_rate, self.div_actns):
@@ -190,8 +191,8 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
                 if p != 0:
                     bag.append(nn.Dropout(p).cuda())
 
-                bag.append(nn.Linear(ni, no).cuda())   # 关键：最后一层 no = 1. 每个 separation layer 只给出 1 个 Cik，所以 div_lin_ftrs[-1] = 1 是正确的，而不是 K。
-                # separation layer 不直接输出 K 维向量. 而是有 K 个 separation layer，每个输出 1 维数值（Cik）
+                bag.append(nn.Linear(ni, no).cuda())   # 关键：最后一层 no = 1. 每个 separation layer 只给出 1 个 Cik。这里no = 1，意味着 这个 Linear 层的这个 1 并不代表 Cik 的维度，而是 torch 计算时默认的通道维度。所以 div_lin_ftrs[-1] = 1 是正确的，而不是 K。
+                # separation layer 不直接输出 K 维向量. 而是有 K 个 separation layer，每个输出 j 维向量（Cik）
                 # Separation Layer 并不是一个大网络输出 K 维 Cik，而是 K 个小网络，每个输出 1 个 Cik。
 
                 if actn != None:
@@ -199,7 +200,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
                 bag = nn.Sequential(*bag)  # 将所有层组合成一个 Sequential 模块
                 sub_basket.append(bag)  # 每个类别 k 有一个 separation layer
 
-            self.baskets.append(sub_basket) # 所有类别的 separation layer. 说明 K 个类别各有 1 个 separation layer，每个 separation layer 的最终输出是 1（Cik）
+            self.baskets.append(sub_basket) # 所有类别的 separation layer. 说明 K 个类别各有 1 个 separation layer，每个 separation layer 的最终输出是 j 维向量（Cik）
 
 
 
@@ -224,7 +225,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
             x_deal = x  # 每个 separation layer 处理相同的输入（Module Input）
             for layer in layers: # 遍历当前嵌入空间中的每一层（layer），layers 是一个层的列表
                 x_deal = layer(x_deal) 
-                if x_deal.shape[-1] == self.metric_out_dim:   # 说明这层是 `separation layer` 的倒数第二层（输出 j 维度的 Cik 向量）
+                if x_deal.shape[-1] == self.metric_out_dim:   # 说明这层是 `separation layer` 的倒数第一层（输出 j 维度的 Cik 向量，Cik 向量是Xi向量被解耦之后的向量）
                     # x_deal 是一个三维张量， 其形状为 (batch_size, lead, sequence_length)。 
                     # metric_out_dim 指的是最后一个维度 sequence_length（特征维度）（论文里面的j.超参数）（它影响到如何设计和连接后续的网络层）。x_deal.shape[-1]表示最后一个维度（特征维度）的大小。 
                     
@@ -239,7 +240,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
 
                 if x_deal.shape[-1] == 1 and count == 1:  # 检查 x_deal 的最后一个维度是否为 1。检查 count 是否等于 1。说明是最后一层，输出的是 `Cik` 值
                     cat_out = x_deal  
-                if x_deal.shape[-1] == 1 and count != 1:
+                if x_deal.shape[-1] == 1 and count != 1: # 说明 x_deal 是 Cik 值，最终拼接成 (batch_size, K, 1)
                     cat_out = torch.cat((cat_out, x_deal), dim=-1)  # 多个类别的 `Cik` 值拼接在一起
 
         cat_out = torch.unsqueeze(cat_out, dim=-1)  #这里是LDM的结构的输出也就是Module Output。 # 变成 (batch_size, K, 1)，其中 K 是类别数（每个类别对应一个 `Cik`）
