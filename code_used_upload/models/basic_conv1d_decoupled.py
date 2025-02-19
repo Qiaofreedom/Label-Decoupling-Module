@@ -124,12 +124,12 @@ class rSE(nn.Module):
     def __init__(self, nin, reduce=16):
         super(rSE, self).__init__()
         self.nin = nin
-        self.se = nn.Sequential(nn.Linear(self.nin, self.nin // reduce),
+        self.se = nn.Sequential(nn.Linear(self.nin, self.nin // reduce),   # self.nin = P (也就是 P 维度)。 
                                 nn.ReLU(inplace=True),
                                 nn.Linear(self.nin // reduce, self.nin),
                                 nn.Sigmoid())
 
-        self.rse = nn.Sequential(nn.Linear(self.nin, self.nin),
+        self.rse = nn.Sequential(nn.Linear(self.nin, self.nin),  # 计算 P → P 的全连接层，得到一个 shape (batch_size, P) 的 prob_em，表示 em 的权重
                                 nn.Sigmoid())
     def forward(self, x):
 
@@ -138,13 +138,13 @@ class rSE(nn.Module):
 
         #diff = torch.abs(em - div)
 
-        prob_em = self.rse(torch.ones_like(em))  # rse里面有Sigmoid函数
+        prob_em = self.rse(torch.ones_like(em))  # rse里面有Sigmoid函数，经过 Sigmoid()，确保 prob_em 取值范围在 (0,1)。 计算 P → P 的全连接层，得到一个 shape (batch_size, P) 的 prob_em，表示 em 的权重
 
         #prob_em = self.se(diff)
 
-        prob_div = 1 - prob_em
+        prob_div = 1 - prob_em  # `div` 的权重 = 1 - `prob_em`。 (batch_size, P)
 
-        out = em * prob_em + div * prob_div   # em是第0个通道（Module Output），div是第1个通道(Raw Output)
+        out = em * prob_em + div * prob_div   # em是第0个通道（Module Output），div是第1个通道(Raw Output)。 out.shape = (batch_size, P)
 
         return out
 
@@ -165,7 +165,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
         self.em_basket = nn.ModuleList()
         self.aggre = rSE(nin=cls_num, reduce=cls_num // 2)
 
-        for ni, no, p, actn in zip(self.em_stru[:-1], self.em_stru[1:], self.drop_rate, self.em_actns):  这段代码的作用是构建 em_basket 这个神经网络模块，它是 LDM 结构中处理 Raw Output（即 Module Input）的部分。它处理 Raw Output（即 Module Input），输出 Raw Features，用于后续 Final Output 计算。
+        for ni, no, p, actn in zip(self.em_stru[:-1], self.em_stru[1:], self.drop_rate, self.em_actns):  # 这段代码的作用是构建 em_basket 这个神经网络模块，它是 LDM 结构中处理 Raw Output的部分。它处理 Raw Output（即 Module Input），输出 Raw Features，用于后续 Final Output 计算。
             bag = []
             if self.bn:
                 bag.append(nn.BatchNorm1d(ni).cuda())  # 添加 BatchNorm 归一化层
@@ -181,7 +181,7 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
 
 
         
-        for div_num in range(self.cls_num): # 有多少类就有多少个cls_num。  div_num代表每个类，也就是每个separation layer
+        for div_num in range(self.cls_num):  # 它是 LDM 结构中处理 Module Output的部分。 有多少类就有多少个cls_num。  div_num代表每个类，也就是每个separation layer
             sub_basket = nn.ModuleList()
             for ni, no, p, actn in zip(self.div_stru[:-1], self.div_stru[1:], self.drop_rate, self.div_actns):
                 bag = []
@@ -205,9 +205,9 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
 
 
 
-    def forward(self, x):
+    def forward(self, x):  # x是每个 separation layer 处理相同的输入（Module Input）
         cat_out = []  # 存放 LDM 计算得到的 `Cik`
-        feats = []  # 存放 LDM 归一化后的 `Cik`（用于后续可视化）
+        feats = []  # 存放 LDM 归一化后的 每一个`Cik`（用于后续可视化）
         count = 0
 
         # ========== 计算 Raw Output（传统的倒数第二层输出）==========
@@ -220,9 +220,9 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
         x_em_deal = torch.unsqueeze(x_em_deal, dim=-1)   # 变成 (batch_size, P, 1)，其中 P 是传统倒数第二层的维度（Fig.3(b) 里的 Raw Output）
 
         # ========== 计算 Module Output（LDM 结构的 Cik）==========
-        for layers in self.baskets:  # 遍历所有 embedding space，每个类别 K 都有自己的 `separation layer`
+        for layers in self.baskets:  # 遍历所有 embedding space，有K个类别，每个类别 K 都有自己的 `separation layer`。这里的每个layers就是对应`separation layer`。
             count += 1
-            x_deal = x  # 每个 separation layer 处理相同的输入（Module Input）
+            x_deal = x  # x是每个 separation layer 处理相同的输入（Module Input）
             for layer in layers: # 遍历当前嵌入空间中的每一层（layer），layers 是一个层的列表
                 x_deal = layer(x_deal) 
                 if x_deal.shape[-1] == self.metric_out_dim:   # 说明这层是 `separation layer` 的倒数第一层（输出 j 维度的 Cik 向量，Cik 向量是Xi向量被解耦之后的向量）
@@ -236,11 +236,11 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
                     # p=2 指定了范数的类型，这里使用的是 L2 范数（也称为欧几里得范数）。L2 范数是所有元素的平方和的平方根。
                     # dim=-1 指定了进行归一化的维度。-1 表示最后一个维度。
                     
-                    feats.append(x_deal_feat)
+                    feats.append(x_deal_feat)  # 存放 LDM 归一化后的 每一个`Cik`（用于后续可视化）
 
-                if x_deal.shape[-1] == 1 and count == 1:  # 检查 x_deal 的最后一个维度是否为 1。检查 count 是否等于 1。说明是最后一层，输出的是 `Cik` 值
+                if x_deal.shape[-1] == 1 and count == 1:  # 检查 x_deal 的最后一个维度是否为 1。检查 count 是否等于 1，也就是看是否是第一个Cik。说明是最后一层，输出的是 `Cik` 值.此时 cat_out 的形状是 (batch_size, 1)
                     cat_out = x_deal  
-                if x_deal.shape[-1] == 1 and count != 1: # 说明 x_deal 是 Cik 值，最终拼接成 (batch_size, K, 1)
+                if x_deal.shape[-1] == 1 and count != 1: # 说明 x_deal 是 Cik 值，最终拼接成 (batch_size, K)
                     cat_out = torch.cat((cat_out, x_deal), dim=-1)  # 多个类别的 `Cik` 值拼接在一起
 
         cat_out = torch.unsqueeze(cat_out, dim=-1)  #这里是LDM的结构的输出也就是Module Output。 # 变成 (batch_size, K, 1)，其中 K 是类别数（每个类别对应一个 `Cik`）
@@ -248,13 +248,13 @@ class DivOutLayer(nn.Module): #这个是LDM结构。输入x是LDM结构中的Mod
         # 如果 cat_out 的形状是 (3, 2)，那么 torch.unsqueeze(cat_out, dim=-1) 的输出形状将是 (3, 2, 1)。
 
         # ========== 融合 Raw Output 和 Module Output ==========
-        out = self.aggre(torch.cat((x_em_deal, cat_out), dim=-1))  # `rSE`（r-SqueezeExcite）用于自适应加权 `Raw Output` 和 `Module Output`，得到 Final Output
+        out = self.aggre(torch.cat((x_em_deal, cat_out), dim=-1))  #拼接后的维度是（batch_size, P, 2）。P和K的值一样。 `rSE`（r-SqueezeExcite）用于自适应加权 `Raw Output` (batch_size, P, 1) 和 `Module Output` (batch_size, K, 1)，得到 Final Output
         
-        # 在最后一维上cat，然后做： self.aggre = rSE(nin=cls_num, reduce=cls_num // 2)。见123行
+        # 在最后一维上cat，然后做： self.aggre = rSE(nin=cls_num, reduce=cls_num // 2)。见123行。 这里 P == K 是必要条件，否则 rSE 无法进行逐元素加权计算。 最好的方法是设计 lin_ftrs 和 div_lin_ftrs 时，直接让 P == K，避免额外的变换。
 
         # ========== 选择是否返回度量学习特征 ==========
         if self.if_train == True:
-            return [out, feats] # 训练时返回 Final Output 和 归一化 `Cik`
+            return [out, feats] # 训练时返回 Final Output 和 归一化 `Cik`。 feats存放 LDM 归一化后的 每一个`Cik`（用于后续可视化）
         else:
             return out   # 推理时只返回 Final Output。 是论文Fig.3.(b)里面的 Final Output.已经融合了Raw Output和Module Output两种Output。
 
