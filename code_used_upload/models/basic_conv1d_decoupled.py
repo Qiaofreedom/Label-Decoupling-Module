@@ -263,7 +263,7 @@ def create_head1d(nf:int, nc:int, lin_ftrs:Optional[Collection[int]]=None, ps:Fl
     # 深度学习模型的头部（head），主要用于处理1维特征。这个头部将输入特征通过一系列的全连接层和其他层，最终输出指定数量的类别（nc）
     # nf：输入特征的数量。nc：输出类别的数量。lin_ftrs：线性层的特征数量列表。ps：dropout 的概率。bn_final：是否在最后一层添加 BatchNorm。bn：是否在每个全连接层后添加 BatchNorm。act：激活函数的类型，可以是 'relu' 或 'elu'。concat_pooling：是否使用 AdaptiveConcatPool1d 作为池化层。
     lin_ftrs = [2*nf if concat_pooling else nf, nc] if lin_ftrs is None else [2*nf if concat_pooling else nf] + lin_ftrs + [nc] #was [nf, 512,nc]
-    # lin_ftrs 确定了 传统的head的 倒数第二层的 特征数量（论文里面的P值）。。如果没有提供，默认将其设置为 [2*nf, nc]（使用 concat_pooling）或 [nf, nc]
+    # lin_ftrs 确定了 传统的head层以前的 倒数第二层（特征提取层）的 输出特征数量（论文里面的P值）。。如果没有提供，默认将其设置为 [2*nf, nc]（使用 concat_pooling）或 [nf, nc]
     ps = listify(ps)  # 主要是确保传入的 ps（dropout 概率）总是以列表形式存在，无论用户最初是传入一个单一浮点数还是已经是列表。 
     if len(ps)==1: ps = [ps[0]/2] * (len(lin_ftrs)-2) + ps  # ps 是 dropout 的概率，如果是单个值，将其扩展为与 lin_ftrs 匹配的列表。ps[0] 是 ps 列表中的唯一元素。ps[0]/2 是将这个元素的值减半。[ps[0]/2] * (len(lin_ftrs)-2) 创建一个包含 (len(lin_ftrs)-2) 个 ps[0]/2 的列表。这一步是为了给中间的线性层设置较小的 dropout 概率。
     # + ps 是将原来的 ps 列表（包含一个元素）追加到新列表的末尾。dropout 概率 ps 只需要为每两个相邻层之间的连接设置，因此 ps 的长度应该是 len(lin_ftrs) - 1。也就是说，如果len(lin_ftrs)的元素为4，则ps列表的长度为3.
